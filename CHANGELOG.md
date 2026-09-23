@@ -4,6 +4,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Changed
+
+- README: quickstart now starts with the tunnel, and a new "Running it for real" section covers stable tunnel URLs, launchd and updating
+
 ## [0.1.0] - 2026-09-23
 
 First public release.

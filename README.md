@@ -26,7 +26,7 @@ Skills are resolved from the target repository (`.claude/skills/<name>/SKILL.md`
 - Node.js 20.11 or newer and pnpm 9 or newer
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed, with either an Anthropic API key or a subscription token
 - A Linear workspace where you can create an OAuth application
-- A tunnel that exposes one local port to the internet (ngrok, cloudflared, Tailscale Funnel)
+- A tunnel that exposes one local port to the internet, with a stable URL (see [Running it for real](#running-it-for-real))
 
 ## Quickstart
 
@@ -38,26 +38,41 @@ pnpm ui:build
 cp .env.example .env
 ```
 
-### 1. Create the Linear OAuth application
+### 1. Expose one port to the internet
+
+Linear delivers webhooks over the internet, and taskanvil runs on your machine, so one port has to be reachable. The agent itself keeps listening on localhost; the tunnel forwards to it.
+
+The quickest path is ngrok with the free static domain every account gets:
+
+```sh
+brew install ngrok                       # or download from ngrok.com
+ngrok config add-authtoken <token>       # from dashboard.ngrok.com
+ngrok http --url=<your-name>.ngrok-free.app 3456
+```
+
+Claim the domain under **Domains** in the ngrok dashboard first. Without `--url`, ngrok assigns a random hostname that changes on every restart, and each change silently breaks the webhook you configure in the next step. See [Running it for real](#running-it-for-real) for alternatives and for keeping the tunnel alive.
+
+Put the resulting URL in `.env` as `AGENT_PUBLIC_URL` so the setup page can show you the exact webhook address.
+
+### 2. Create the Linear OAuth application
 
 In Linear go to **Settings → API → OAuth applications → Create new**.
 
 - **Redirect URL:** `http://localhost:3456/oauth/callback` (change the port if you set `AGENT_PORT`)
-- **Webhooks:** enable them, and turn on the **Agent session events** category. The URL is your tunnel's public URL plus `/linear-webhook`, for example `https://example.ngrok.app/linear-webhook`.
+- **Webhooks:** enable them, and turn on the **Agent session events** category. The URL is your tunnel URL plus `/linear-webhook`, for example `https://your-name.ngrok-free.app/linear-webhook`.
 - Copy the **client ID**, **client secret** and **webhook signing secret** into `.env`.
 
 Add your Claude credential to `.env` as well: `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`.
 
-### 2. Start the agent and connect the workspace
+### 3. Start the agent and connect the workspace
 
 ```sh
-ngrok http 3456        # or your tunnel of choice, in another terminal
 pnpm start
 ```
 
 Open <http://localhost:3456/setup>. The page checks your environment, then a single button runs the OAuth handshake and writes `runtime/tokens.json`. Tokens refresh themselves from then on.
 
-### 3. Register a repository and give it a skill
+### 4. Register a repository and give it a skill
 
 Open <http://localhost:3456> for the flow editor. Add the local clone the agent should work in. Then make sure the skill your handler names exists, for example:
 
@@ -67,7 +82,7 @@ Open <http://localhost:3456> for the flow editor. Add the local clone the agent 
 
 Any Claude Code skill works. If you already have skills in `~/.claude/skills` or from plugins, they are picked up automatically.
 
-### 4. Assign a ticket
+### 5. Assign a ticket
 
 Assign a Linear issue to the agent, or mention it. Add a label that matches a handler in `agent.config.ts` or a flow you drew. Watch the session timeline in Linear.
 
@@ -122,6 +137,98 @@ Each registered repository can carry its own directives and commit convention, s
 ### Flows
 
 The flow editor at `/` draws label handlers as node graphs and saves them to `<repo>/.claude/flows/<label>.json`. A flow with the same label as a code handler wins. Flows support the same primitives as code plus conditions on edges, so a single label can branch on directives.
+
+## Running it for real
+
+The quickstart gets a session working in two terminals. For daily use you want the tunnel and the agent to survive closing the terminal and rebooting, and the public URL to never change.
+
+### Choosing a tunnel
+
+| Option | Stable URL | Cost | Notes |
+| --- | --- | --- | --- |
+| ngrok static domain | yes | free tier includes one | Easiest. Rate-limited on the free plan, but agent webhooks are a handful of requests per ticket. |
+| cloudflared | yes | free with a domain you own | Runs as a service, no per-connection limits. Needs a Cloudflare-managed DNS zone. |
+| Tailscale Funnel | yes | free | Good if you already use Tailscale. URL is under `ts.net`. |
+| ngrok random URL | **no** | free | Fine for a first test only. Every restart changes the hostname and the Linear webhook stops arriving until you update it. |
+
+Whatever you pick, the webhook URL you enter in Linear must match the tunnel exactly, and only the `/linear-webhook` path is ever called from outside. Every request is verified with the signing secret, so a guessable URL is not a problem.
+
+Example cloudflared setup once you have a domain on Cloudflare:
+
+```sh
+brew install cloudflared
+cloudflared tunnel login
+cloudflared tunnel create taskanvil
+cloudflared tunnel route dns taskanvil agent.example.com
+cloudflared tunnel run --url http://localhost:3456 taskanvil
+```
+
+Then set `AGENT_PUBLIC_URL=https://agent.example.com` and use `https://agent.example.com/linear-webhook` in Linear.
+
+### Keeping it running on macOS
+
+Both the tunnel and the agent can run as user agents under launchd, which starts them at login and restarts them if they crash. Two plist files in `~/Library/LaunchAgents`:
+
+`~/Library/LaunchAgents/dev.taskanvil.agent.plist`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>dev.taskanvil.agent</string>
+  <key>WorkingDirectory</key><string>/Users/you/taskanvil</string>
+  <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/pnpm</string><string>start</string>
+  </array>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/you/taskanvil/runtime/agent.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/taskanvil/runtime/agent.log</string>
+</dict></plist>
+```
+
+`~/Library/LaunchAgents/dev.taskanvil.tunnel.plist` is the same shape with `ProgramArguments` set to your tunnel command, for example `/opt/homebrew/bin/ngrok`, `http`, `--url=your-name.ngrok-free.app`, `3456`.
+
+Load them once:
+
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.taskanvil.agent.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.taskanvil.tunnel.plist
+```
+
+Useful afterwards:
+
+```sh
+launchctl kickstart -k gui/$(id -u)/dev.taskanvil.agent   # restart after changing agent.config.ts or .env
+tail -f runtime/agent.log                                  # follow the log
+launchctl bootout gui/$(id -u)/dev.taskanvil.agent         # stop and unload
+```
+
+The `PATH` entry matters: launchd does not read your shell profile, so without it pnpm cannot find node, and Claude Code sessions cannot find `claude`, `git` or `gh`.
+
+On Linux the equivalent is a systemd user unit with `Restart=always` and `WorkingDirectory` set to the checkout. Docker is deliberately not the recommended path: the agent needs your git identity, your Claude Code login and your local clones, all of which live in your home directory.
+
+### Updating
+
+```sh
+git pull
+pnpm install
+pnpm ui:build
+launchctl kickstart -k gui/$(id -u)/dev.taskanvil.agent
+```
+
+Tokens in `runtime/` survive updates. Read the changelog before pulling across a minor version, since the config surface may change before 1.0.
+
+### What runs where
+
+- **Your machine:** the agent, the tunnel client, Claude Code sessions, git worktrees. Only the agent's webhook path is exposed.
+- **Linear:** sends agent session events, receives activities and responses.
+- **Anthropic:** receives the intake extraction call and the Claude Code session traffic, under your own key or subscription.
+
+Nothing else is involved. There is no hosted component and no telemetry.
 
 ## Development
 
