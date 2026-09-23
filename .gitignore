@@ -1,0 +1,17 @@
+# dependencies
+node_modules/
+
+# local secrets and mutable agent state
+.env
+runtime/
+
+# build output
+web/dist/
+*.log
+
+# editor / OS
+.DS_Store
+.claude/settings.local.json
+
+# local reference material, never part of the project
+cyrus-reference/

@@ -1,0 +1,59 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true,
+		"defaultBranch": "main"
+	},
+	"files": {
+		"includes": ["**", "!web/dist", "!runtime", "!cyrus-reference"]
+	},
+	"formatter": {
+		"indentStyle": "tab",
+		"lineWidth": 120
+	},
+	"linter": {
+		"rules": {
+			"recommended": true,
+			"style": {
+				"noNonNullAssertion": "off",
+				"noDescendingSpecificity": "off"
+			},
+			"suspicious": {
+				"noExplicitAny": "off",
+				"noArrayIndexKey": "off"
+			},
+			"complexity": {
+				"noImportantStyles": "off"
+			}
+		},
+		"domains": {
+			"react": "recommended",
+			"test": "recommended"
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double"
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["web/src/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"useKeyWithClickEvents": "warn",
+						"noStaticElementInteractions": "warn",
+						"noLabelWithoutControl": "warn",
+						"noNoninteractiveElementToInteractiveRole": "warn"
+					},
+					"correctness": {
+						"useExhaustiveDependencies": "warn"
+					}
+				}
+			}
+		}
+	]
+}
