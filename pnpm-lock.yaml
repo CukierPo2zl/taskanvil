@@ -18,8 +18,8 @@ importers:
         specifier: ^10.1.2
         version: 10.1.2
       '@linear/sdk':
-        specifier: ^88.0.0
-        version: 88.2.0(graphql@15.10.2)
+        specifier: ^95.1.0
+        version: 95.1.0(graphql@15.10.2)
       dotenv:
         specifier: ^16.4.0
         version: 16.6.1
@@ -647,8 +647,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@linear/sdk@88.2.0':
-    resolution: {integrity: sha512-nHs4MSFnnGYQZ0zWFlmYKuMLbgewkIjQag78F31DOkdavbJnfRp+YYZxaYHNvYJLfLbzp36/BGoCtR6xSrMssA==}
+  '@linear/sdk@95.1.0':
+    resolution: {integrity: sha512-c1BzIWqVEDcTV42EuEOVFYrYjmsqFBmaR/105xbOY9SmMPBrtcE4+BNHFfTa4WtrWN2cL3EJ9c+zcccZxNSWsQ==}
     engines: {node: '>=18.x'}
 
   '@lukeed/ms@2.0.2':
@@ -2283,7 +2283,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@linear/sdk@88.2.0(graphql@15.10.2)':
+  '@linear/sdk@95.1.0(graphql@15.10.2)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@15.10.2)
     transitivePeerDependencies:
