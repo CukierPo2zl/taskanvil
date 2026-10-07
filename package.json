@@ -37,18 +37,18 @@
 		"ui:dev": "pnpm --dir web dev"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "^0.3.0",
-		"@anthropic-ai/sdk": "^0.113.0",
-		"@fastify/static": "^10.1.2",
+		"@anthropic-ai/claude-agent-sdk": "^0.3.289",
+		"@anthropic-ai/sdk": "^0.131.0",
+		"@fastify/static": "^10.1.5",
 		"@linear/sdk": "^88.0.0",
 		"dotenv": "^16.4.0",
-		"fastify": "^5.0.0",
+		"fastify": "^5.12.5",
 		"zod": "^3.24.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.14",
+		"@biomejs/biome": "^2.5.15",
 		"@types/node": "^24.0.0",
-		"tsx": "^4.19.0",
+		"tsx": "^4.23.15",
 		"typescript": "^5.7.0",
 		"vitest": "^3.0.0"
 	}
