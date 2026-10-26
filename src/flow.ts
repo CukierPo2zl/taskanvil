@@ -16,6 +16,7 @@ export type FlowNode = (
 			git?: GitPolicy;
 			maxTurns?: number;
 			extraPrompt?: string;
+			interactive?: boolean;
 	  }
 	| { id: string; type: "commit"; message?: string }
 	| { id: string; type: "push" }
@@ -243,6 +244,7 @@ async function executeNode(node: FlowNode, ctx: HandlerCtx, deps: FlowRunDeps, s
 				session: node.session,
 				git: node.git,
 				maxTurns: node.maxTurns,
+				interactive: node.interactive,
 				extraPrompt: node.extraPrompt ? interpolate(node.extraPrompt, vars) : undefined,
 			});
 			scope.lastText = result.finalText;
