@@ -50,6 +50,12 @@ export interface ClaudeRunOptions {
 	maxTurns?: number;
 	extraPrompt?: string;
 	cwd?: string;
+	/**
+	 * When the agent ends a turn waiting on the user, post it as a Linear
+	 * elicitation and resume the same Claude session with their reply, instead
+	 * of moving on to the next step. Right for grilling/planning steps.
+	 */
+	interactive?: boolean;
 }
 
 export interface ClaudeRunResult {

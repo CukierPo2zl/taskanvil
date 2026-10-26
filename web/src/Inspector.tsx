@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SearchIcon } from "./icons";
+import { CloseIcon, SearchIcon } from "./icons";
 import type { FlowNodeDef, SkillInfo, SkillSource } from "./types";
 
 // Aliases resolve via the bundled Agent SDK; fable postdates it, so its full
@@ -140,7 +140,7 @@ function SkillPicker(props: { value?: string; skills: SkillInfo[]; onChange: (na
 													onClick={() => pick(s.name)}
 												>
 													<code>{s.name}</code>
-													{s.shadows && <span className="badge badge-shadowed">overrides {s.shadows}</span>}
+													{s.shadows && <span className="badge badge-amber">overrides {s.shadows}</span>}
 												</button>
 											</li>
 										);
@@ -172,8 +172,8 @@ export function NodeInspector(props: {
 			<header className={`sig-${def.type}`}>
 				<span className="chip">{def.type}</span>
 				<code>{def.id}</code>
-				<button type="button" className="close" title="Close" onClick={props.onClose}>
-					✕
+				<button type="button" className="icon-btn close" title="Close" onClick={props.onClose}>
+					<CloseIcon />
 				</button>
 			</header>
 
@@ -229,7 +229,7 @@ export function NodeInspector(props: {
 								checked={def.git?.commit !== false}
 								onChange={(e) => set({ git: { ...def.git, commit: e.target.checked } })}
 							/>
-							allow commit
+							Allow commit
 						</label>
 						<label className="check">
 							<input
@@ -237,7 +237,7 @@ export function NodeInspector(props: {
 								checked={def.git?.push === true}
 								onChange={(e) => set({ git: { ...def.git, push: e.target.checked } })}
 							/>
-							allow push (rarely)
+							Allow push (rarely)
 						</label>
 					</Field>
 					<Field label="max turns">
@@ -249,7 +249,7 @@ export function NodeInspector(props: {
 						/>
 					</Field>
 					<details className="disclosure">
-						<summary>tools: {def.tools?.length ? `${def.tools.length} allowed` : "all"} ›</summary>
+						<summary>Tools: {def.tools?.length ? `${def.tools.length} allowed` : "all"}</summary>
 						<textarea
 							rows={5}
 							value={(def.tools ?? []).join("\n")}
@@ -268,7 +268,7 @@ export function NodeInspector(props: {
 						/>
 					</details>
 					<details className="disclosure">
-						<summary>extra prompt: {def.extraPrompt ? "set" : "—"} ›</summary>
+						<summary>Extra prompt: {def.extraPrompt ? "set" : "—"}</summary>
 						<textarea
 							rows={3}
 							value={def.extraPrompt ?? ""}
@@ -307,7 +307,7 @@ export function NodeInspector(props: {
 							checked={def.draft === true}
 							onChange={(e) => set({ draft: e.target.checked || undefined })}
 						/>
-						draft PR
+						Draft PR
 					</label>
 				</>
 			)}
@@ -345,7 +345,7 @@ export function NodeInspector(props: {
 			)}
 
 			<button type="button" className="remove-link" onClick={props.onDelete}>
-				remove step
+				Remove step
 			</button>
 		</div>
 	);
@@ -361,8 +361,8 @@ export function EdgeInspector(props: {
 		<div className="inspector">
 			<header className="sig-edge">
 				<span className="chip">edge</span>
-				<button type="button" className="close" title="Close" onClick={props.onClose}>
-					✕
+				<button type="button" className="icon-btn close" title="Close" onClick={props.onClose}>
+					<CloseIcon />
 				</button>
 			</header>
 			<Field label="condition (blank = always taken)">
@@ -375,7 +375,7 @@ export function EdgeInspector(props: {
 				Edges are tried top-down in creation order; unknown keys are false.
 			</p>
 			<button type="button" className="remove-link" onClick={props.onDelete}>
-				remove edge
+				Remove edge
 			</button>
 		</div>
 	);

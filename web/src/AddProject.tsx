@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import { CloseIcon } from "./icons";
 import type { BrowseResult } from "./types";
 
 export function AddProject(props: { initialPath?: string; onAdded: (name: string) => void; onClose: () => void }) {
@@ -49,8 +50,8 @@ export function AddProject(props: { initialPath?: string; onAdded: (name: string
 			<div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Add project">
 				<header>
 					<h2>Add project</h2>
-					<button type="button" onClick={props.onClose}>
-						✕
+					<button type="button" className="icon-btn" title="Close" onClick={props.onClose}>
+						<CloseIcon />
 					</button>
 				</header>
 
@@ -69,19 +70,19 @@ export function AddProject(props: { initialPath?: string; onAdded: (name: string
 								↑
 							</button>
 							<code>{listing?.path ?? "…"}</code>
-							{listing?.isGitRepo && <span className="badge badge-project">git repo</span>}
+							{listing?.isGitRepo && <span className="badge badge-green">git repo</span>}
 						</div>
 						<ul className="browser-dirs">
 							{listing?.dirs.map((dir) => (
 								<li key={dir.path} className="browser-row">
 									<button type="button" className="browser-name" onClick={() => browse(dir.path)}>
 										{dir.isGitRepo ? "◈" : "▸"} {dir.name}
-										{dir.isGitRepo && <span className="badge badge-project">git</span>}
+										{dir.isGitRepo && <span className="badge badge-green">git</span>}
 									</button>
 									{dir.isGitRepo && (
 										<button
 											type="button"
-											className="browser-add"
+											className="btn btn-secondary btn-xs browser-add"
 											disabled={busy}
 											onClick={() => setManualPath(dir.path)}
 										>
@@ -142,7 +143,12 @@ export function AddProject(props: { initialPath?: string; onAdded: (name: string
 				{error && <p className="warn">{error}</p>}
 
 				<footer>
-					<button type="button" className="primary" disabled={busy || !targetPath} onClick={() => register(targetPath)}>
+					<button
+						type="button"
+						className="btn btn-primary"
+						disabled={busy || !targetPath}
+						onClick={() => register(targetPath)}
+					>
 						{busy ? "Registering…" : "Register project"}
 					</button>
 				</footer>

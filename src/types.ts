@@ -43,4 +43,6 @@ export interface WorktreeInfo {
 	branch: string;
 	baseBranch: string;
 	repoPath: string;
+	/** `.claude/` entries copied in from the main checkout, e.g. "flows/bug.json". */
+	synced: string[];
 }

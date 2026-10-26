@@ -140,6 +140,8 @@ export function startClaude(
 		post: ActivityPort;
 		initialPrompt: string;
 		resume?: string;
+		/** Puts a question to the user (Linear elicitation) and resolves with their reply; null = stopped. */
+		askUser?: (body: string) => Promise<string | null>;
 	},
 ): RunnerHandle {
 	const stream = new PromptStream();
@@ -161,6 +163,17 @@ export function startClaude(
 			systemPrompt: { type: "preset", preset: "claude_code" },
 			settingSources: [],
 			canUseTool: async (toolName, input) => {
+				if (toolName === "AskUserQuestion") {
+					// Headless, the CLI has no picker and returns "did not answer" at once —
+					// route the questions through Linear and hand the reply back as the answers.
+					const questions = (input as { questions?: AskedQuestion[] }).questions ?? [];
+					const reply = opts.askUser ? await opts.askUser(formatQuestions(questions)) : null;
+					if (reply === null) {
+						return { behavior: "deny", message: "Could not reach the user. Ask in plain text and end your turn." };
+					}
+					const answers = Object.fromEntries(questions.map((q) => [q.question, reply]));
+					return { behavior: "allow", updatedInput: { ...input, answers } };
+				}
 				const verdict = gate(toolName, input as Record<string, unknown>);
 				if (verdict?.behavior === "deny") {
 					await opts.post.action("blocked", `${toolName}: ${verdict.message}`).catch(() => {});
@@ -191,6 +204,10 @@ export function startClaude(
 					}
 				} else if (message.type === "result") {
 					finalText = message.subtype === "success" ? message.result : `Session ended: ${message.subtype}`;
+					// Streaming input keeps the CLI alive until the prompt stream ends —
+					// close it so the run resolves. Comments injected mid-turn were already
+					// handed to the CLI and still produce a later result, which overwrites finalText.
+					stream.close();
 				}
 			}
 		} finally {
@@ -208,6 +225,25 @@ export function startClaude(
 			stream.close();
 		},
 	};
+}
+
+interface AskedQuestion {
+	question: string;
+	header?: string;
+	multiSelect?: boolean;
+	options?: Array<{ label: string; description?: string }>;
+}
+
+/** One Linear comment answers every question, so number them for the user to reply by number. */
+export function formatQuestions(questions: AskedQuestion[]): string {
+	return questions
+		.map((q, i) => {
+			const options = (q.options ?? []).map((o) => `   - **${o.label}**${o.description ? ` — ${o.description}` : ""}`);
+			const hint = q.multiSelect ? " _(pick any)_" : "";
+			return [`**${i + 1}. ${q.question}**${hint}`, ...options].join("\n");
+		})
+		.join("\n\n")
+		.concat("\n\n_Reply here — answer by number, or in your own words._");
 }
 
 export function loadSkillFile(path: string): string {

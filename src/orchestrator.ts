@@ -14,6 +14,8 @@ import type { SessionRecord, WebhookEvent, WorktreeInfo } from "./types.js";
 export class Orchestrator {
 	private sessions = new Map<string, SessionRecord>();
 	private runners = new Map<string, RunnerHandle>();
+	/** Interactive agent steps parked on an elicitation; resolved by the next Linear reply (null = stopped). */
+	private replyWaiters = new Map<string, (reply: string | null) => void>();
 	private stateFile: string;
 
 	constructor(
@@ -56,8 +58,9 @@ export class Orchestrator {
 			return await this.handlePrompted(event, post);
 		} catch (err) {
 			const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
-			console.error(`[orchestrator] ${event.agentSessionId} failed:`, message);
 			const record = this.sessions.get(event.agentSessionId);
+			if (record?.status === "stopped") return; // the abort surfacing — handleStop already replied
+			console.error(`[orchestrator] ${event.agentSessionId} failed:`, message);
 			if (record) {
 				record.status = "failed";
 				this.persist();
@@ -76,6 +79,8 @@ export class Orchestrator {
 			record.updatedAt = new Date().toISOString();
 			this.persist();
 		}
+		this.replyWaiters.get(event.agentSessionId)?.(null);
+		this.replyWaiters.delete(event.agentSessionId);
 		await post.response("Stopped. The worktree and any commits are left as they are.");
 	}
 
@@ -143,6 +148,13 @@ export class Orchestrator {
 			record.pendingAsk = undefined;
 			this.persist();
 			await this.announceAndRun(record, event, post);
+			return;
+		}
+
+		const waiter = this.replyWaiters.get(event.agentSessionId);
+		if (waiter) {
+			this.replyWaiters.delete(event.agentSessionId);
+			waiter(event.promptBody ?? "");
 			return;
 		}
 
@@ -257,6 +269,7 @@ export class Orchestrator {
 					branch: record.branch ?? "",
 					baseBranch: repoConfig.baseBranch,
 					repoPath: repoConfig.path,
+					synced: [],
 				}
 			: undefined;
 
@@ -291,7 +304,8 @@ export class Orchestrator {
 				record.worktreePath = worktree.path;
 				record.branch = worktree.branch;
 				orchestrator.persist();
-				await post.action("worktree", `${worktree.path} (branch ${branch} from ${repoConfig.baseBranch})`);
+				const synced = worktree.synced.length ? `, ${worktree.synced.length} flows/skills copied in` : "";
+				await post.action("worktree", `${worktree.path} (branch ${branch} from ${repoConfig.baseBranch}${synced})`);
 				return worktree;
 			},
 
@@ -318,20 +332,30 @@ export class Orchestrator {
 								extra: opts.extraPrompt,
 							});
 
-				const handle = startClaude({
-					...opts,
-					cwd,
-					convention,
-					post,
-					initialPrompt: prompt,
-					resume: resume || continueSession ? record.claudeSessionId : undefined,
-				});
-				orchestrator.runners.set(record.agentSessionId, handle);
+				const askUser = async (body: string) => {
+					await post.elicitation(body);
+					return new Promise<string | null>((resolve) => orchestrator.replyWaiters.set(record.agentSessionId, resolve));
+				};
 
-				const result = await handle.result;
-				record.claudeSessionId = result.claudeSessionId || record.claudeSessionId;
-				ctx._lastClaudeText = result.finalText;
-				orchestrator.persist();
+				const runTurn = async (initialPrompt: string, resumeId: string | undefined) => {
+					const handle = startClaude({ ...opts, cwd, convention, post, initialPrompt, resume: resumeId, askUser });
+					orchestrator.runners.set(record.agentSessionId, handle);
+					const turn = await handle.result;
+					record.claudeSessionId = turn.claudeSessionId || record.claudeSessionId;
+					ctx._lastClaudeText = turn.finalText;
+					orchestrator.persist();
+					return turn;
+				};
+
+				let result = await runTurn(prompt, resume || continueSession ? record.claudeSessionId : undefined);
+
+				// Interactive steps: the agent's question becomes a Linear elicitation and
+				// the same Claude session resumes with the reply, until the step is done.
+				while (opts.interactive && awaitsUserReply(result.finalText)) {
+					const reply = await askUser(result.finalText);
+					if (reply === null) throw new Error("Stopped while waiting for a reply");
+					result = await runTurn(formatUserComment(reply), record.claudeSessionId);
+				}
 				return result;
 			},
 
@@ -392,6 +416,16 @@ function buildPrompt(parts: {
 	if (parts.extra) sections.push(parts.extra);
 
 	return sections.join("\n\n");
+}
+
+/**
+ * Decides, after an interactive agent step ends its turn, whether the agent
+ * is waiting on the user (→ elicitation + wait for a Linear reply) or has
+ * finished the step (→ the flow moves on to the next node).
+ */
+export function awaitsUserReply(finalText: string): boolean {
+	// TODO(you): see the notes in the conversation — 5-10 lines.
+	return false;
 }
 
 function formatUserComment(body: string): string {
