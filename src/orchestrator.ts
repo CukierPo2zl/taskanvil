@@ -257,6 +257,7 @@ export class Orchestrator {
 					branch: record.branch ?? "",
 					baseBranch: repoConfig.baseBranch,
 					repoPath: repoConfig.path,
+					synced: [],
 				}
 			: undefined;
 
@@ -291,7 +292,8 @@ export class Orchestrator {
 				record.worktreePath = worktree.path;
 				record.branch = worktree.branch;
 				orchestrator.persist();
-				await post.action("worktree", `${worktree.path} (branch ${branch} from ${repoConfig.baseBranch})`);
+				const synced = worktree.synced.length ? `, ${worktree.synced.length} flows/skills copied in` : "";
+				await post.action("worktree", `${worktree.path} (branch ${branch} from ${repoConfig.baseBranch}${synced})`);
 				return worktree;
 			},
 

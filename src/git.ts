@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import type { RepoConfig } from "./config.js";
@@ -24,7 +25,8 @@ export async function createWorktree(
 
 	const existing = await git(repo.path, "worktree", "list", "--porcelain");
 	if (existing.includes(`worktree ${path}`)) {
-		return { path, branch: opts.branch, baseBranch: repo.baseBranch, repoPath: repo.path };
+		const synced = await syncAgentConfig(repo.path, path);
+		return { path, branch: opts.branch, baseBranch: repo.baseBranch, repoPath: repo.path, synced };
 	}
 
 	const branchExists =
@@ -36,6 +38,7 @@ export async function createWorktree(
 	} else {
 		await git(repo.path, "worktree", "add", "-b", opts.branch, path, `${remote}/${repo.baseBranch}`);
 	}
+	const synced = await syncAgentConfig(repo.path, path);
 
 	if (repo.setupCommand) {
 		await exec("sh", ["-c", repo.setupCommand], {
@@ -45,7 +48,55 @@ export async function createWorktree(
 		});
 	}
 
-	return { path, branch: opts.branch, baseBranch: repo.baseBranch, repoPath: repo.path };
+	return { path, branch: opts.branch, baseBranch: repo.baseBranch, repoPath: repo.path, synced };
+}
+
+/** The `.claude/` directories the engine reads from the main checkout. */
+const SYNCED_DIRS = ["flows", "skills"];
+
+/**
+ * Copies the main checkout's `.claude/flows` and `.claude/skills` into a
+ * worktree. Flows and skills are resolved from the main checkout, but the
+ * Claude session runs in the worktree — whose base branch may not have them
+ * (they often live uncommitted, or on another branch) — and discovers project
+ * skills from its own cwd.
+ *
+ * Entries the branch already has win and are left untouched. Symlinked skills
+ * are dereferenced, since relative links rarely resolve from the worktree.
+ * Copies are listed in a self-ignoring `.claude/.gitignore`, so neither
+ * ctx.commit() nor Claude's own `git add -A` commits them into the ticket's
+ * branch. If the branch tracks its own `.claude/.gitignore`, it is not
+ * modified and the copies show up as untracked files.
+ *
+ * Returns the copied entries, relative to `.claude/` (e.g. "flows/bug.json").
+ */
+export async function syncAgentConfig(repoPath: string, worktreePath: string): Promise<string[]> {
+	const copied: string[] = [];
+	for (const dir of SYNCED_DIRS) {
+		const from = join(repoPath, ".claude", dir);
+		if (!existsSync(from)) continue;
+		for (const entry of await readdir(from)) {
+			const target = join(worktreePath, ".claude", dir, entry);
+			if (existsSync(target)) continue;
+			try {
+				await cp(join(from, entry), target, { recursive: true, dereference: true });
+				copied.push(`${dir}/${entry}`);
+			} catch {
+				// a dangling symlink in the main checkout — nothing usable to copy
+			}
+		}
+	}
+
+	const ignoreFile = join(worktreePath, ".claude", ".gitignore");
+	if (copied.length > 0 && !existsSync(ignoreFile)) {
+		const lines = [
+			"# Copied from the main checkout by taskanvil; not part of this branch.",
+			"/.gitignore",
+			...copied.map((entry) => `/${entry}`),
+		];
+		await writeFile(ignoreFile, `${lines.join("\n")}\n`);
+	}
+	return copied;
 }
 
 export async function removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
